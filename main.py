@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.INFO)
 # Инициализация OpenAI
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+user_contexts = {}
 
 # Функция для сохранения данных пользователя
 async def save_user_data(user: types.User):
@@ -251,12 +252,16 @@ async def send_welcome(message: types.Message):
 # Обработчик callback кнопок
 @dp.callback_query()
 async def handle_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+
     if callback_query.data == "crypto_chat":
+        user_contexts[user_id] = "crypto"
         await callback_query.message.answer(
             "Режим криптоэксперта активирован! 🤖\n"
             "Давай обсудим крипту, блокчейн или как очередной токен полетел на луну! 🚀"
         )
     elif callback_query.data == "conference_info":
+        user_contexts[user_id] = "conference"
         await callback_query.message.answer(
             "О да, наша конференция! 📅\n"
             "Спрашивай все, что хочешь знать о самом крутом крипто-событии!"
@@ -271,6 +276,7 @@ async def handle_callback(callback_query: types.CallbackQuery):
             reply_markup=contact_keyboard
         )
     elif callback_query.data == "back_to_main":
+        user_contexts.pop(user_id, None)  # Очищаем контекст при возврате в меню
         await callback_query.message.answer(
             "Вернулись в главное меню! Что тебя интересует?",
             reply_markup=get_main_keyboard()
@@ -285,8 +291,10 @@ async def handle_text(message: types.Message):
     if not message.text:
         return
 
-    # Определяем контекст на основе последнего сообщения
-    is_crypto = "конференц" not in message.text.lower()
+    user_id = message.from_user.id
+
+    # Определяем контекст на основе сохраненного состояния пользователя
+    is_crypto = user_contexts.get(user_id) != "conference"
 
     # Получаем ответ от GPT
     response = await get_gpt_response(message.text, is_crypto)
