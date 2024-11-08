@@ -1,4 +1,4 @@
-
+import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -8,10 +8,6 @@ import csv
 from datetime import datetime
 import os
 import aiohttp
-from flask import Flask, request, Response
-
-# Flask приложение
-app = Flask(__name__)
 
 # Конфигурация
 API_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -304,21 +300,11 @@ async def handle_text(message: types.Message):
     await message.reply(response, reply_markup=reply_keyboard)
 
 
-@app.route(f'/webhook', methods=['POST'])
-async def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        update = types.Update(**request.json)
-        await dp.feed_update(bot, update)
-        return Response('ok', status=200)
-    return Response(status=403)
+# Функция запуска бота
+async def main():
+    await dp.start_polling(bot)
 
-# Главная страница
-@app.route('/')
-def index():
-    return 'Бот работает!'
 
-# Запуск
+# Запуск бота
 if __name__ == '__main__':
-    # Запускаем Flask приложение
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    asyncio.run(main())
