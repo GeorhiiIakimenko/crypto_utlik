@@ -1,4 +1,4 @@
-import asyncio
+
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -8,11 +8,13 @@ import csv
 from datetime import datetime
 import os
 import aiohttp
+from aiohttp import web
 
 # Конфигурация
 API_TOKEN = os.getenv('TELEGRAM_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 SERPER_API_KEY = os.getenv('SERPER_API_KEY')
+PORT = int(os.getenv('PORT', 8443))
 
 # Инициализация бота и диспетчера
 bot = Bot(token=API_TOKEN)
@@ -300,10 +302,47 @@ async def handle_text(message: types.Message):
 
 
 # Функция запуска бота
-async def main():
-    await dp.start_polling(bot)
+# Обработчик вебхуков
+async def handle_webhook(request):
+    if request.content_type != 'application/json':
+        return web.Response(status=403)
+
+    data = await request.json()
+    update = types.Update(**data)
+    await dp.feed_update(bot, update)
+
+    return web.Response()
+
+
+# Функция настройки вебхуков
+async def on_startup():
+    webhook_url = f'https://{os.getenv("HEROKU_APP_NAME")}.herokuapp.com/webhook'
+    await bot.set_webhook(webhook_url)
+    logging.info(f'Webhook set to {webhook_url}')
+
+
+async def on_shutdown():
+    logging.warning('Shutting down..')
+    await bot.delete_webhook()
+    await bot.close()
+    logging.warning('Bye!')
 
 
 # Запуск бота
 if __name__ == '__main__':
-    asyncio.run(main())
+    # Создаем приложение
+    app = web.Application()
+
+    # Добавляем маршрут для вебхуков
+    app.router.add_post('/webhook', handle_webhook)
+
+    # Регистрируем обработчики запуска и остановки
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    # Запускаем приложение
+    web.run_app(
+        app,
+        host='0.0.0.0',
+        port=PORT
+    )
